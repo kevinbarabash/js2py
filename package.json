@@ -4,6 +4,7 @@
   "description": "Transpile JavaScript to Python.",
   "main": "index.js",
   "scripts": {
+    "build": "browserify src/transform.js -o build/transform.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -16,8 +17,16 @@
     "url": "https://github.com/kevinb7/js2py/issues"
   },
   "homepage": "https://github.com/kevinb7/js2py",
+  "devDependencies": {
+    "babel": "^4.6.6",
+    "babelify": "^5.0.4",
+    "browserify": "^9.0.3"
+  },
   "dependencies": {
     "esprima": "^2.1.0",
     "estraverse": "^3.1.0"
+  },
+  "browserify": {
+    "transform": ["babelify"]
   }
 }
