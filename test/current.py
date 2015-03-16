@@ -1,5 +1,9 @@
+from runtime import classonlymethod 
+
+
 def sum(x, y):
     pass
+
 
 class Foo(object):
     def __init__(self, x):
@@ -10,3 +14,9 @@ class Foo(object):
 
     def addX(self, y):
         pass
+
+    @classonlymethod
+    def bar(cls, multiplier):
+        pass
+
+print "hello, world!"

@@ -30,7 +30,7 @@ var transform = function(code) {
     };
 
     estraverse.traverse(ast, {
-        enter: function(node, parent) {
+        enter(node, parent) {
             var func, name;
 
             if (node.type === "FunctionExpression") {
@@ -93,54 +93,95 @@ var transform = function(code) {
                     name: node.id.name,
                     params: node.params.map(function (param) {
                         return param.name;
-                    })
+                    }),
+                    body: node.body
                 };
                 funcsByName[func.name] = func;
                 funcOrder.push(func.name);
                 // transform the body?
             }
         },
-        leave: function(node, parent) {
+        leave(node, parent) {
 
         }
     });
 
+    console.log("from runtime import classonlymethod");
+    console.log();
+    
+    var tab = "    ";
+    var indent = 0;
+    
+    var renderFunction = function(func) {
+        var params = func.params.join(", ");
+        console.log(`${tab.repeat(indent)}def ${func.name}(${params}):`);
+        indent++;
+        
+        var body = func.body;
+        if (body.type === "BlockStatement") {
+            body.body.forEach(node => {
+                var stmt = "";
+                // TODO create a render statement function
+                // only call it if node.type contains "Statement"
+                if (node.type === "ReturnStatement") {
+                    stmt += "return ";
+                    // TODO do the same for epxressions
+                    if (node.argument.type === "BinaryExpression") {
+                        
+                    }
+                } 
+            });
+        }
+        
+        console.log(`${tab.repeat(indent)}pass`);
+        indent--;
+        console.log();
+    };
+    
+    var renderMethod = function(func, isClassMethod) {
+        var firstParam = isClassMethod ? "cls" : "self";
+        var params = [firstParam, ...func.params].join(", ");
+        var name = func.name;
+        
+        if (isClassMethod) {
+            console.log(`${tab.repeat(indent)}@classonlymethod`);
+        }
+        console.log(`${tab.repeat(indent)}def ${name}(${params}):`);
+        indent++;
+        console.log(`${tab.repeat(indent)}pass`);
+        console.log();
+        indent--;
+    };
 
     funcOrder.forEach(function (name) {
         var func = funcsByName[name];
-
-        // TODO: upgrade source to ES6 so that we can use template strings
+        
         if (func.methods) {
-            console.log("class " + func.name + "(object):");
-            var params = func.params.slice();
-            params.unshift("self"); // ["self", ...func.params] with ES6
-            console.log("    def __init__(" + params.join(", ") + "):");
-            console.log("        pass");
-            console.log("");
+            console.log(`${tab.repeat(indent)}class ${func.name}(object):`);
+            indent++;
+            
+            renderMethod({ name: "__init__", params: func.params });
+            
             Object.keys(func.methods).forEach(function(name) {
-                var value = func.methods[name];
-                var params = value.params.slice();
-                params.unshift("self");
-                console.log("    def " + name + "(" + params.join(", ") + "):");
-                console.log("        pass");
-                console.log("");
+                renderMethod(func.methods[name]);
             });
+            
+            Object.keys(func.static).forEach(function(name) {
+                renderMethod(func.static[name], true);
+            });
+
+            indent--;
         } else {
-            console.log("def " + func.name + "(" + func.params.join(", ") + "):");
-            console.log("    pass");
-            console.log("");
+            renderFunction(func);
 
             if (func.static) {
                 // TODO printout private numbered functions
-                //Object.keys(func.static).forEach(function (name) {
-                //    var value = func.static[name];
-                //    console.lo
-                //    console.log(func.name + "." + name 
-                //});
             }
         }
 
     });
+    
+    console.log(`${tab.repeat(indent)}print "hello, world!"`);
 };
 
 module.exports = transform;

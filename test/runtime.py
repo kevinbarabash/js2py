@@ -23,3 +23,11 @@ class JSObject(object):
             return types.MethodType(value, self)
         else:
             raise AttributeError
+
+
+class classonlymethod(classmethod):
+    def __get__(self, obj, type=None):
+        if obj is not None:
+            raise AttributeError("This method is available only on the class.")
+        return super(classonlymethod, self).__get__(obj, type)
+
