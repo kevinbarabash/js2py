@@ -1,0 +1,23 @@
+{
+  "name": "js2py",
+  "version": "0.0.1",
+  "description": "Transpile JavaScript to Python.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kevinb7/js2py"
+  },
+  "author": "Kevin Barabash (kevinb7@gmail.com)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/kevinb7/js2py/issues"
+  },
+  "homepage": "https://github.com/kevinb7/js2py",
+  "dependencies": {
+    "esprima": "^2.1.0",
+    "estraverse": "^3.1.0"
+  }
+}
