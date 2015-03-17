@@ -1,6 +1,58 @@
 var esprima = require("esprima");
 var estraverse = require("estraverse");
 
+var tab = "    ";
+var indent = 0;
+
+var renderExpression = function(node) {
+    var left, right;
+    if (node.type === "AssignmentExpression") {
+        // TODO handle left Patterns correctly
+        left = renderExpression(node.left); 
+        right = renderExpression(node.right);
+        return `${left} ${node.operator} ${right}`;
+    } else if (node.type === "BinaryExpression") {
+        left = renderExpression(node.left);
+        right = renderExpression(node.right);
+        return `${left} ${node.operator} ${right}`;
+    } else if (node.type === "CallExpression") {
+        var callee = renderExpression(node.callee);
+        var args = node.arguments.map(renderExpression).join(", ");
+        
+        // make the output more pythonic
+        if (callee === "console.log") {
+            callee = "print";
+            return `${callee} ${args}`
+        }
+        
+        return `${callee}(${args})`;
+    } else if (node.type === "ThisExpression") {
+        return "self";
+    } else if (node.type === "MemberExpression") {
+        var obj = renderExpression(node.object);
+        var prop = renderExpression(node.property);
+        return `${obj}.${prop}`;
+    } else if (node.type === "Identifier") {
+        return node.name;
+    } else if (node.type === "Literal") {
+        // TODO convert regex
+        return node.value;
+    }
+};
+
+var renderStatement = function(node) {
+    var expr;
+    
+    if (node.type === "ReturnStatement") {
+        expr = renderExpression(node.argument);
+        console.log(`${tab.repeat(indent)}return ${expr}`);
+    } else if (node.type === "ExpressionStatement") {
+        expr = renderExpression(node.expression);
+        console.log(`${tab.repeat(indent)}${expr}`);
+    }
+
+};
+
 var transform = function(code) {
     var ast = esprima.parse(code);
     
@@ -57,7 +109,8 @@ var transform = function(code) {
                                 name: name,
                                 params: node.params.map(function (param) {
                                     return param.name;
-                                })
+                                }),
+                                body: node.body
                             }
                         } else {
                             if (!func.static) {
@@ -72,7 +125,8 @@ var transform = function(code) {
                                 name: name,
                                 params: node.params.map(function (param) {
                                     return param.name;
-                                })
+                                }),
+                                body: node.body
                             }
                         }
                     }
@@ -81,7 +135,8 @@ var transform = function(code) {
                         name: parent.id.name,
                         params: node.params.map(function (param) {
                             return param.name;
-                        })
+                        }),
+                        body: node.body
                     };
                     funcsByName[func.name] = func;
                     funcOrder.push(func.name);
@@ -107,33 +162,28 @@ var transform = function(code) {
     });
 
     console.log("from runtime import classonlymethod");
+    console.log("import console");
     console.log();
-    
-    var tab = "    ";
-    var indent = 0;
     
     var renderFunction = function(func) {
         var params = func.params.join(", ");
         console.log(`${tab.repeat(indent)}def ${func.name}(${params}):`);
         indent++;
         
+        // TODO: two-pass
+        // first pass = find all statements that contribute to a class defn and mark them
+        // second pass = spit out class definitions and remaining statements
         var body = func.body;
         if (body.type === "BlockStatement") {
-            body.body.forEach(node => {
-                var stmt = "";
-                // TODO create a render statement function
-                // only call it if node.type contains "Statement"
-                if (node.type === "ReturnStatement") {
-                    stmt += "return ";
-                    // TODO do the same for epxressions
-                    if (node.argument.type === "BinaryExpression") {
-                        
-                    }
-                } 
-            });
+            if (body.body.length > 0) {
+                body.body.forEach(node => {
+                    renderStatement(node);
+                });
+            } else {
+                console.log(`${tab.repeat(indent)}pass`);
+            }
         }
         
-        console.log(`${tab.repeat(indent)}pass`);
         indent--;
         console.log();
     };
@@ -148,7 +198,18 @@ var transform = function(code) {
         }
         console.log(`${tab.repeat(indent)}def ${name}(${params}):`);
         indent++;
-        console.log(`${tab.repeat(indent)}pass`);
+
+        var body = func.body;
+        if (body.type === "BlockStatement") {
+            if (body.body.length > 0) {
+                body.body.forEach(node => {
+                    renderStatement(node);
+                });
+            } else {
+                console.log(`${tab.repeat(indent)}pass`);
+            }
+        }
+        
         console.log();
         indent--;
     };
@@ -160,7 +221,7 @@ var transform = function(code) {
             console.log(`${tab.repeat(indent)}class ${func.name}(object):`);
             indent++;
             
-            renderMethod({ name: "__init__", params: func.params });
+            renderMethod({ name: "__init__", params: func.params, body: func.body });
             
             Object.keys(func.methods).forEach(function(name) {
                 renderMethod(func.methods[name]);

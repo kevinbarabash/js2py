@@ -2,6 +2,10 @@ function sum(x,y) {
     return x+y;
 }
 
+function nop() {
+    
+}
+
 var Foo = function(x) {
     this.x = x;
 };
@@ -13,6 +17,10 @@ Foo.prototype.getX = function() {
 Foo.prototype.addX = function(y) {
     console.log(Foo.bar(5));
     return this.x + y;
+};
+
+Foo.prototype.nop = function() {
+    
 };
 
 Foo.z = 23;

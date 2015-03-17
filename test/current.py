@@ -1,22 +1,28 @@
-from runtime import classonlymethod 
-
+from runtime import classonlymethod
+import console
 
 def sum(x, y):
-    pass
+    return x + y
 
+def nop():
+    pass
 
 class Foo(object):
     def __init__(self, x):
-        pass
+        self.x = x
 
     def getX(self):
-        pass
+        return self.x
 
     def addX(self, y):
+        console.log(Foo.bar(5))
+        return self.x + y
+
+    def nop(self):
         pass
 
     @classonlymethod
     def bar(cls, multiplier):
-        pass
+        return Foo.z * multiplier
 
-print "hello, world!"
+console.log("hello, world!")
