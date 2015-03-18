@@ -1,5 +1,4 @@
 var esprima = require("esprima");
-var estraverse = require("estraverse");
 
 var tab = "    ";
 var indent = 0;
@@ -80,87 +79,79 @@ var transform = function(code) {
 
         return parts;
     };
-
-    estraverse.traverse(ast, {
-        enter(node, parent) {
-            var func, name;
-
-            if (node.type === "FunctionExpression") {
-                if (parent.type === "AssignmentExpression") {
-                    if (parent.left.type === "MemberExpression") {
-                        var parts = getMemberParts(parent.left);
-                        var cls = parts[0];
-
-                        func = funcsByName[cls];
-                        if (!func) {
-                            throw "class not defined yet";
-                        }
-
-                        if (parts[1] === "prototype") {
-                            if (!func.methods) {
-                                // TODO use an ordered dict for this as well
-                                func.methods = {};
-                            }
+    
+    // TODO: add a scope of object to track what classes/functions have already been defined
+    ast.body.forEach(node => {
+        var func, name, parts, right;
+        
+        if (node.type === "ExpressionStatement") {
+            var expr = node.expression;
+            if (expr.type === "AssignmentExpression") {
+                parts = getMemberParts(expr.left);
+                right = expr.right;
+                
+                if (right.type === "FunctionExpression") {
+                    if (parts[0] in funcsByName) {
+                        if (parts[1] === "prototype" && parts.length === 3) {
                             name = parts[2];
-                            if (!name) {
-                                throw "replacing the prototype isn't supported yet"
-                            }
+                            func = funcsByName[parts[0]];
+                            func.methods = func.methods || {};
                             func.methods[name] = {
                                 name: name,
-                                params: node.params.map(function (param) {
+                                params: right.params.map(function (param) {
                                     return param.name;
                                 }),
-                                body: node.body
+                                body: right.body
                             }
-                        } else {
-                            if (!func.static) {
-                                // TODO use an ordered dict for this as well
-                                func.static = {};
-                            }
+                        } else if (parts.length === 2) {
                             name = parts[1];
-                            if (!name) {
-                                throw "changing what the class is pointing at isn't supported";
-                            }
+                            func = funcsByName[parts[0]];
+                            func.static = func.static || {};
                             func.static[name] = {
                                 name: name,
-                                params: node.params.map(function (param) {
+                                params: right.params.map(function (param) {
                                     return param.name;
                                 }),
-                                body: node.body
+                                body: right.body
                             }
                         }
                     }
-                } else if (parent.type === "VariableDeclarator") {
+                }
+            }
+        } 
+        
+        if (node.type === "VariableDeclaration") {
+            node.declarations.forEach(decl => {
+                var init = decl.init;
+                if (init.type === "FunctionExpression") {
                     func = {
-                        name: parent.id.name,
-                        params: node.params.map(function (param) {
+                        name: decl.id.name,
+                        params: init.params.map(function (param) {
                             return param.name;
                         }),
-                        body: node.body
+                        body: init.body
                     };
                     funcsByName[func.name] = func;
                     funcOrder.push(func.name);
                 }
-            }
-
-            if (node.type === "FunctionDeclaration") {
-                func = {
-                    name: node.id.name,
-                    params: node.params.map(function (param) {
-                        return param.name;
-                    }),
-                    body: node.body
-                };
-                funcsByName[func.name] = func;
-                funcOrder.push(func.name);
-                // transform the body?
-            }
-        },
-        leave(node, parent) {
-
+            });
+        }
+        
+        if (node.type === "FunctionDeclaration") {
+            func = {
+                name: node.id.name,
+                params: node.params.map(function (param) {
+                    return param.name;
+                }),
+                body: node.body
+            };
+            funcsByName[func.name] = func;
+            funcOrder.push(func.name);
+            // transform the body?
         }
     });
 
+    // preface
     console.log("from runtime import classonlymethod");
     console.log("import console");
     console.log();
@@ -223,23 +214,27 @@ var transform = function(code) {
             
             renderMethod({ name: "__init__", params: func.params, body: func.body });
             
-            Object.keys(func.methods).forEach(function(name) {
-                renderMethod(func.methods[name]);
-            });
+            if (func.methods) {
+                Object.keys(func.methods).forEach(function(name) {
+                    renderMethod(func.methods[name]);
+                });
+            }
             
-            Object.keys(func.static).forEach(function(name) {
-                renderMethod(func.static[name], true);
-            });
-
+            if (func.static) {
+                Object.keys(func.static).forEach(function(name) {
+                    renderMethod(func.static[name], true);
+                });
+            }
+            
             indent--;
         } else {
             renderFunction(func);
-
+            
             if (func.static) {
                 // TODO printout private numbered functions
             }
         }
-
+    
     });
     
     console.log(`${tab.repeat(indent)}print "hello, world!"`);
