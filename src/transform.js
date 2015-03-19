@@ -1,4 +1,4 @@
-var esprima = require("esprima");
+var esprima = require("esprima-fb");
 
 var tab = "    ";
 var indent = 0;
@@ -13,17 +13,26 @@ var renderExpression = function(node) {
     } else if (node.type === "BinaryExpression") {
         left = renderExpression(node.left);
         right = renderExpression(node.right);
+        
+        if (node.operator === "+") {
+            if (node.left.type === "Literal" && 
+                typeof node.left.value === "string" &&
+                node.right.type !== "Literal") {
+                    return `${left} + str(${right})`;
+                }
+        }
+        
         return `${left} ${node.operator} ${right}`;
-    } else if (node.type === "CallExpression") {
+    } else if (node.type === "CallExpression" || node.type === "NewExpression") {
         var callee = renderExpression(node.callee);
         var args = node.arguments.map(renderExpression).join(", ");
-        
+
         // make the output more pythonic
         if (callee === "console.log") {
             callee = "print";
             return `${callee} ${args}`
         }
-        
+
         return `${callee}(${args})`;
     } else if (node.type === "ThisExpression") {
         return "self";
@@ -35,6 +44,9 @@ var renderExpression = function(node) {
         return node.name;
     } else if (node.type === "Literal") {
         // TODO convert regex
+        if (typeof node.value === "string") {
+            return `"${node.value}"`
+        }
         return node.value;
     }
 };
@@ -48,6 +60,10 @@ var renderStatement = function(node) {
     } else if (node.type === "ExpressionStatement") {
         expr = renderExpression(node.expression);
         console.log(`${tab.repeat(indent)}${expr}`);
+    } else if (node.type === "VariableDeclarator") {
+        var name = node.id.name;
+        var init = renderExpression(node.init);
+        console.log(`${tab.repeat(indent)}${name} = ${init}`);
     }
 
 };
@@ -57,7 +73,7 @@ var transform = function(code) {
     
     // TODO(ordered dictionary)
     var funcsByName = {};
-    var funcOrder = [];
+    var statements = [];
 
     var getMemberParts = function(node) {
         var parts = [];
@@ -89,7 +105,7 @@ var transform = function(code) {
             if (expr.type === "AssignmentExpression") {
                 parts = getMemberParts(expr.left);
                 right = expr.right;
-                
+
                 if (right.type === "FunctionExpression") {
                     if (parts[0] in funcsByName) {
                         if (parts[1] === "prototype" && parts.length === 3) {
@@ -116,11 +132,13 @@ var transform = function(code) {
                             }
                         }
                     }
+                } else {
+                    statements.push(node);
                 }
+            } else {
+                statements.push(node);
             }
-        } 
-        
-        if (node.type === "VariableDeclaration") {
+        } else if (node.type === "VariableDeclaration") {
             node.declarations.forEach(decl => {
                 var init = decl.init;
                 if (init.type === "FunctionExpression") {
@@ -132,12 +150,12 @@ var transform = function(code) {
                         body: init.body
                     };
                     funcsByName[func.name] = func;
-                    funcOrder.push(func.name);
+                    statements.push(func);
+                } else {
+                    statements.push(decl);
                 }
             });
-        }
-        
-        if (node.type === "FunctionDeclaration") {
+        } else if (node.type === "FunctionDeclaration") {
             func = {
                 name: node.id.name,
                 params: node.params.map(function (param) {
@@ -146,8 +164,10 @@ var transform = function(code) {
                 body: node.body
             };
             funcsByName[func.name] = func;
-            funcOrder.push(func.name);
+            statements.push(func);
             // transform the body?
+        } else {
+            statements.push(node);
         }
     });
 
@@ -204,37 +224,40 @@ var transform = function(code) {
         console.log();
         indent--;
     };
-
-    funcOrder.forEach(function (name) {
-        var func = funcsByName[name];
-        
-        if (func.methods) {
-            console.log(`${tab.repeat(indent)}class ${func.name}(object):`);
-            indent++;
-            
-            renderMethod({ name: "__init__", params: func.params, body: func.body });
-            
-            if (func.methods) {
-                Object.keys(func.methods).forEach(function(name) {
-                    renderMethod(func.methods[name]);
-                });
-            }
-            
-            if (func.static) {
-                Object.keys(func.static).forEach(function(name) {
-                    renderMethod(func.static[name], true);
-                });
-            }
-            
-            indent--;
+    
+    statements.forEach(function (stmt) {
+        if (stmt.type) {
+            renderStatement(stmt);
         } else {
-            renderFunction(func);
-            
-            if (func.static) {
-                // TODO printout private numbered functions
+            var func = stmt;
+
+            if (func.methods) {
+                console.log(`${tab.repeat(indent)}class ${func.name}(object):`);
+                indent++;
+
+                renderMethod({ name: "__init__", params: func.params, body: func.body });
+
+                if (func.methods) {
+                    Object.keys(func.methods).forEach(function(name) {
+                        renderMethod(func.methods[name]);
+                    });
+                }
+
+                if (func.static) {
+                    Object.keys(func.static).forEach(function(name) {
+                        renderMethod(func.static[name], true);
+                    });
+                }
+
+                indent--;
+            } else {
+                renderFunction(func);
+
+                if (func.static) {
+                    // TODO printout private numbered functions
+                }
             }
         }
-    
     });
     
     console.log(`${tab.repeat(indent)}print "hello, world!"`);

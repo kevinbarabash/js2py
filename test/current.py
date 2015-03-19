@@ -15,7 +15,7 @@ class Foo(object):
         return self.x
 
     def addX(self, y):
-        console.log(Foo.bar(5))
+        print Foo.bar(5)
         return self.x + y
 
     def nop(self):
@@ -25,4 +25,11 @@ class Foo(object):
     def bar(cls, multiplier):
         return Foo.z * multiplier
 
-console.log("hello, world!")
+Foo.z = 23
+print "hello, world"
+print "5 + 10 = " + str(sum(5, 10))
+foo = Foo(5)
+print foo.getX()
+print foo.addX(10)
+print Foo.bar(2)
+print "hello, world!"
